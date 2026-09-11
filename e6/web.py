@@ -54,10 +54,14 @@ def create_app(manager, simulate=True):
                 if upload is None:
                     raise ValueError('请选择图片')
                 frame, png = convert(upload.read(), request.form.get('algorithm', 'floyd-steinberg'),
-                                     request.form.get('fit', 'contain'))
+                                     request.form.get('fit', 'contain'),
+                                     orientation=request.form.get('orientation', 'landscape'),
+                                     enhance=request.form.get('enhance', 'photo'),
+                                     **{key: request.form.get(key, 1) for key in
+                                        ('brightness', 'contrast', 'saturation', 'gamma', 'strength')})
             elif kind in ('white', 'bars'):
                 frame = solid('white') if kind == 'white' else color_bars()
-                png = preview(frame)
+                png = preview(frame, request.form.get('orientation', 'landscape'))
             else:
                 raise ValueError('未知图像类型')
             identifier = secrets.token_urlsafe(18)

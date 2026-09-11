@@ -26,14 +26,18 @@ async function prepare(kind){
   if(kind==='image' && !$('file').files[0]){message('请先选择图片。');return;}
   working=true;draft=null;buttons();message('正在处理图片…');
   const body=new FormData();body.append('kind',kind);
+  const orientation=$('orientation').value;body.append('orientation',orientation);
+  for(const key of ['enhance','brightness','contrast','saturation','gamma','strength'])body.append(key,$(key).value);
   if(kind==='image'){body.append('image',$('file').files[0]);body.append('algorithm',$('algorithm').value);body.append('fit',$('fit').value);}
   try {const result=await (await api('/api/prepare',{method:'POST',body})).json();
     const blob=await (await api('/api/preview/'+result.id)).blob();
     if(previewURL)URL.revokeObjectURL(previewURL);previewURL=URL.createObjectURL(blob);
+    $('screen').classList.toggle('portrait',orientation==='portrait');
     $('preview').src=previewURL;$('preview').hidden=false;$('empty').hidden=true;draft=result.id;
     message('预览已生成。确认画面后点击刷新。');
   }catch(error){message(error.message);}finally{working=false;buttons();}
 }
+$('algorithm').onchange=()=>{$('strength').disabled=!['atkinson','bayer'].includes($('algorithm').value);};
 $('prepare').onsubmit=event=>{event.preventDefault();prepare('image');};
 $('bars').onclick=()=>prepare('bars');$('white').onclick=()=>prepare('white');
 $('refresh').onclick=async()=>{

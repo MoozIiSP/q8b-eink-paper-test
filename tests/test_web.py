@@ -4,13 +4,13 @@ import threading
 import unittest
 from pathlib import Path
 from PIL import Image
-from e6.imaging import convert, preview, RGB, CODES
+from e6.imaging import convert, preview, RGB, CODES, pack, quantize
 from e6.panel import FRAME_BYTES, solid, validate_frame
 from e6.refresh import RefreshManager
 from e6.web import create_app
 
 
-def png(color='red', size=(480, 720)):
+def png(color='red', size=(720, 480)):
     stream = io.BytesIO()
     Image.new('RGB', size, color).save(stream, 'PNG')
     return stream.getvalue()
@@ -39,6 +39,45 @@ class ImagingTests(unittest.TestCase):
         validate_frame(b)
         self.assertNotEqual(a, b)
         self.assertGreater(len(set(b)), 1)
+
+    def test_landscape_scan_mapping_and_preview(self):
+        codes = Image.new('L', (720, 480), 1)
+        for point, value in [((0, 0), 3), ((719, 0), 2), ((0, 479), 5), ((719, 479), 6)]:
+            codes.putpixel(point, value)
+        frame = pack(codes)
+        # CCW to native: top-right source maps to top-left native.
+        self.assertEqual(frame[0] >> 4, 2)
+        self.assertEqual(frame[239] & 15, 6)
+        self.assertEqual(frame[-240] >> 4, 3)
+        self.assertEqual(frame[-1] & 15, 5)
+        image = Image.open(io.BytesIO(preview(frame)))
+        self.assertEqual(image.size, (720, 480))
+        self.assertEqual(image.getpixel((0, 0)), RGB[3])
+        self.assertEqual(image.getpixel((719, 479)), RGB[5])
+        self.assertEqual(Image.open(io.BytesIO(preview(frame, 'portrait'))).size, (480, 720))
+
+    def test_additional_algorithms(self):
+        image = Image.new('RGB', (48, 32), (120, 120, 120))
+        for algorithm in ('atkinson', 'bayer'):
+            result = quantize(image, algorithm, 1)
+            self.assertTrue(set(result.tobytes()).issubset(CODES))
+            self.assertGreater(len(set(result.tobytes())), 1)
+            plain = quantize(image, algorithm, 0)
+            self.assertEqual(len(set(plain.tobytes())), 1)
+            for color, code in zip(RGB, CODES):
+                pure = quantize(Image.new('RGB', (8, 8), color), algorithm, 1)
+                self.assertEqual(set(pure.tobytes()), {code})
+
+    def test_options_and_white_padding(self):
+        for options in ({'gamma': 'nan'}, {'contrast': 9}, {'strength': -1}, {'enhance': 'bad'}):
+            with self.assertRaises(ValueError):
+                convert(png(), **options)
+        for enhance in ('photo', 'soft'):
+            frame, output = convert(png('red', (20, 20)), enhance=enhance, gamma=1.2)
+            image = Image.open(io.BytesIO(output))
+            self.assertEqual(image.size, (720, 480))
+            self.assertEqual(image.getpixel((0, 0)), (255, 255, 255))
+            validate_frame(frame)
 
     def test_bad_image(self):
         with self.assertRaises(ValueError):
@@ -124,7 +163,7 @@ class WebTests(unittest.TestCase):
 
     def test_upload_preview_refresh(self):
         response = self.client.post('/api/prepare', data={'image': (io.BytesIO(png()), 'test.png'),
-                                    'algorithm': 'none'})
+                                    'algorithm': 'none', 'enhance': 'none'})
         self.assertEqual(response.status_code, 200)
         identifier = response.json['id']
         output = self.client.get('/api/preview/' + identifier)
