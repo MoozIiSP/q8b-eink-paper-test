@@ -2,7 +2,7 @@
 import logging
 import time
 
-WIDTH, HEIGHT = 480, 720
+WIDTH, HEIGHT = 720, 480
 FRAME_BYTES = WIDTH * HEIGHT // 2
 COLORS = dict(black=0, white=1, yellow=2, red=3, blue=5, green=6)
 

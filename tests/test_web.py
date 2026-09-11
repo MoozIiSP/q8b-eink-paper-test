@@ -45,16 +45,32 @@ class ImagingTests(unittest.TestCase):
         for point, value in [((0, 0), 3), ((719, 0), 2), ((0, 479), 5), ((719, 479), 6)]:
             codes.putpixel(point, value)
         frame = pack(codes)
-        # CCW to native: top-right source maps to top-left native.
-        self.assertEqual(frame[0] >> 4, 2)
-        self.assertEqual(frame[239] & 15, 6)
-        self.assertEqual(frame[-240] >> 4, 3)
-        self.assertEqual(frame[-1] & 15, 5)
+        # Native landscape: 360 bytes per row, no rotation or reshape.
+        self.assertEqual(frame[0] >> 4, 3)
+        self.assertEqual(frame[359] & 15, 2)
+        self.assertEqual(frame[-360] >> 4, 5)
+        self.assertEqual(frame[-1] & 15, 6)
         image = Image.open(io.BytesIO(preview(frame)))
         self.assertEqual(image.size, (720, 480))
         self.assertEqual(image.getpixel((0, 0)), RGB[3])
         self.assertEqual(image.getpixel((719, 479)), RGB[5])
         self.assertEqual(Image.open(io.BytesIO(preview(frame, 'portrait'))).size, (480, 720))
+
+    def test_native_rows_and_portrait_roundtrip(self):
+        codes = Image.new('L', (720, 480), 1)
+        for y in range(480):
+            for x in range(720):
+                codes.putpixel((x, y), CODES[y % 6])
+        frame = pack(codes)
+        for y in range(480):
+            self.assertEqual(frame[y * 360:(y + 1) * 360], bytes([CODES[y % 6] * 17]) * 360)
+        portrait = Image.new('L', (480, 720), 1)
+        portrait.putpixel((0, 0), 3)
+        portrait.putpixel((479, 719), 5)
+        image = Image.open(io.BytesIO(preview(pack(portrait, 'portrait'), 'portrait')))
+        self.assertEqual(image.size, portrait.size)
+        self.assertEqual(image.getpixel((0, 0)), RGB[3])
+        self.assertEqual(image.getpixel((479, 719)), RGB[4])
 
     def test_additional_algorithms(self):
         image = Image.new('RGB', (48, 32), (120, 120, 120))

@@ -1,4 +1,4 @@
-"""Landscape photo processing with explicit conversion to reference scan order."""
+"""Photo processing for a native 720x480 raster; portrait is a view rotation."""
 import io
 import math
 import warnings
@@ -72,9 +72,9 @@ def quantize(image, algorithm, strength):
 
 
 def pack(codes, orientation='landscape'):
-    if orientation == 'landscape':
-        codes = codes.transpose(Image.Transpose.ROTATE_90)
-    elif orientation != 'portrait':
+    if orientation == 'portrait':
+        codes = codes.transpose(Image.Transpose.ROTATE_270)
+    elif orientation != 'landscape':
         raise ValueError('不支持的显示方向')
     if codes.size != (NATIVE_WIDTH, NATIVE_HEIGHT):
         raise ValueError('图像尺寸与原始帧不匹配')
@@ -104,7 +104,7 @@ def convert(raw, algorithm='floyd-steinberg', fit='contain', *, orientation='lan
                 source.load()
                 image = ImageOps.exif_transpose(source).convert('RGBA')
         image = Image.alpha_composite(Image.new('RGBA', image.size, 'white'), image).convert('RGB')
-        size = (WIDTH, HEIGHT) if orientation == 'landscape' else (NATIVE_WIDTH, NATIVE_HEIGHT)
+        size = (WIDTH, HEIGHT) if orientation == 'landscape' else (NATIVE_HEIGHT, NATIVE_WIDTH)
         if fit == 'cover':
             image = ImageOps.fit(image, size, Image.Resampling.LANCZOS)
         else:
@@ -140,9 +140,9 @@ def preview(frame, orientation='landscape'):
         pixels.extend(colors[byte >> 4])
         pixels.extend(colors[byte & 15])
     image = Image.frombytes('RGB', (NATIVE_WIDTH, NATIVE_HEIGHT), bytes(pixels))
-    if orientation == 'landscape':
-        image = image.transpose(Image.Transpose.ROTATE_270)
-    elif orientation != 'portrait':
+    if orientation == 'portrait':
+        image = image.transpose(Image.Transpose.ROTATE_90)
+    elif orientation != 'landscape':
         raise ValueError('不支持的显示方向')
     output = io.BytesIO()
     image.save(output, 'PNG')
@@ -153,7 +153,7 @@ def diagnostic(orientation='landscape'):
     """No quantization: color blocks, unique corner labels, border and grid."""
     if orientation not in ('landscape', 'portrait'):
         raise ValueError('不支持的显示方向')
-    size = (WIDTH, HEIGHT) if orientation == 'landscape' else (NATIVE_WIDTH, NATIVE_HEIGHT)
+    size = (WIDTH, HEIGHT) if orientation == 'landscape' else (NATIVE_HEIGHT, NATIVE_WIDTH)
     codes = Image.new('L', size, 1)
     draw = ImageDraw.Draw(codes)
     draw.fontmode = '1'  # No antialiasing between numeric panel codes.

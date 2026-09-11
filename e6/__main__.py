@@ -18,7 +18,7 @@ def pin(value):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='GDEH037E01 480x720 six-color GPIO software SPI')
+    parser = argparse.ArgumentParser(description='GDEH037E01 720x480 six-color GPIO software SPI')
     for signal in ('mosi', 'clk', 'cs', 'dc', 'rst', 'busy'):
         parser.add_argument('--' + signal, type=pin, help='/dev/gpiochipN:OFFSET')
     parser.add_argument('--busy-level', type=int, choices=(0, 1), default=0)
