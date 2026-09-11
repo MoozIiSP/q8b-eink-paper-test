@@ -44,15 +44,10 @@ class GPIOBus:
         self.requests[chip].set_value(offset, self.values[value])
 
     def setup_bit(self, value):
-        clock_chip, clock_offset = self.pins['clk']
-        data_chip, data_offset = self.pins['mosi']
-        if clock_chip == data_chip:
-            # One ioctl for the falling edge plus next data bit; sample on rising edge.
-            self.requests[clock_chip].set_values({
-                clock_offset: self.values[0], data_offset: self.values[value]})
-        else:
-            self.set('clk', 0)
-            self.set('mosi', value)
+        # Explicit ordering: lower clock before changing data. A grouped ioctl
+        # does not guarantee the order of electrical transitions across GPIO lines.
+        self.set('clk', 0)
+        self.set('mosi', value)
 
     def busy(self):
         chip, offset = self.pins['busy']

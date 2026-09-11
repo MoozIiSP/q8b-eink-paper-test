@@ -4,7 +4,7 @@ const names = {idle:'空闲', starting:'准备刷新', reset:'复位', writing:'
 function message(text){$('message').textContent=text;}
 function buttons(){
   $('refresh').disabled = !connected || !draft || working || !state || state.active || state.wait_seconds > 0;
-  for (const id of ['bars','white']) $(id).disabled = working || !connected;
+  for (const id of ['bars','white','diagnostic']) $(id).disabled = working || !connected;
   $('prepare').querySelector('button').disabled = working || !connected;
 }
 async function api(url, options={}){
@@ -39,6 +39,7 @@ async function prepare(kind){
 }
 $('algorithm').onchange=()=>{$('strength').disabled=!['atkinson','bayer'].includes($('algorithm').value);};
 $('prepare').onsubmit=event=>{event.preventDefault();prepare('image');};
+$('diagnostic').onclick=()=>prepare('diagnostic');
 $('bars').onclick=()=>prepare('bars');$('white').onclick=()=>prepare('white');
 $('refresh').onclick=async()=>{
   working=true;buttons();

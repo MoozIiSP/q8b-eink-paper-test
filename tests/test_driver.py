@@ -7,8 +7,13 @@ class FakeBus:
     def __init__(self, busy=1):
         self.level = busy
         self.events = []
+        self.refresh_samples = 0
+        self.active_level = 0
 
     def busy(self):
+        if self.refresh_samples:
+            self.refresh_samples -= 1
+            return self.active_level
         return self.level
 
     def reset(self, value):
@@ -16,6 +21,8 @@ class FakeBus:
 
     def write(self, data, payload):
         self.events.append(('data' if data else 'cmd', payload))
+        if not data and payload == b'\x12':
+            self.refresh_samples = 2
 
 
 class FakeTime:
@@ -84,6 +91,7 @@ class DriverTests(unittest.TestCase):
     def test_busy_high_configuration(self):
         panel = self.panel(FakeBus(busy=0))
         panel.busy_level = 1
+        panel.bus.active_level = 1
         panel.display(solid('white'))
 
     def test_spi_rising_edges_msb_first_and_byte_cs(self):
@@ -107,18 +115,26 @@ class DriverTests(unittest.TestCase):
         self.assertEqual(selects, [0, 1, 0, 1])
         self.assertEqual(state['clk'], 0)
 
-    def test_combined_gpio_writes(self):
+    def test_data_is_set_after_clock_low(self):
         bus = GPIOBus(dict(zip(('mosi', 'clk', 'cs', 'dc', 'rst', 'busy'),
                               [('/dev/gpiochip0', n) for n in range(6)])))
-        from unittest.mock import Mock
+        from unittest.mock import Mock, call
         request = Mock()
         bus.requests = {'/dev/gpiochip0': request}
         bus.values = (0, 1)
-        bus.delay = lambda: None
-        bus.write(True, b'\xa5')
-        self.assertEqual(request.set_values.call_count, 8)
-        self.assertEqual(request.set_value.call_count, 12)  # DC, CS x2, rising x8, final low.
-        self.assertEqual(request.set_values.call_args_list[0].args[0], {1: 0, 0: 1})
+        bus.setup_bit(1)
+        self.assertEqual(request.set_value.call_args_list, [call(1, 0), call(0, 1)])
+        request.set_values.assert_not_called()
+
+    def test_idle_busy_must_not_report_refresh_success(self):
+        bus = FakeBus()
+        bus.busy = lambda: 1  # disconnected/stuck ready
+        with self.assertRaisesRegex(TimeoutError, 'did not assert'):
+            self.panel(bus).display(solid('white'))
+        commands = [v for k, v in bus.events if k == 'cmd']
+        self.assertEqual(commands[-1], b'\x12')
+        self.assertNotIn(b'\x02', commands)
+        self.assertNotIn(b'\x07', commands)
 
     def test_duplicate_lines_rejected(self):
         with self.assertRaises(ValueError):

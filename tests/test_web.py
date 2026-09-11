@@ -4,7 +4,7 @@ import threading
 import unittest
 from pathlib import Path
 from PIL import Image
-from e6.imaging import convert, preview, RGB, CODES, pack, quantize
+from e6.imaging import convert, preview, RGB, CODES, pack, quantize, diagnostic
 from e6.panel import FRAME_BYTES, solid, validate_frame
 from e6.refresh import RefreshManager
 from e6.web import create_app
@@ -78,6 +78,15 @@ class ImagingTests(unittest.TestCase):
             self.assertEqual(image.size, (720, 480))
             self.assertEqual(image.getpixel((0, 0)), (255, 255, 255))
             validate_frame(frame)
+
+    def test_diagnostic_exact_colors(self):
+        for orientation, size in [('landscape', (720, 480)), ('portrait', (480, 720))]:
+            frame, output = diagnostic(orientation)
+            validate_frame(frame)
+            image = Image.open(io.BytesIO(output))
+            self.assertEqual(image.size, size)
+            for i, rgb in enumerate(RGB):
+                self.assertEqual(image.getpixel((i * size[0] // 6 + 10, 80)), rgb)
 
     def test_bad_image(self):
         with self.assertRaises(ValueError):

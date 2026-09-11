@@ -2,13 +2,14 @@
 import argparse
 import fcntl
 import io
+import logging
 import secrets
 import threading
 import time
 from pathlib import Path
 from flask import Flask, jsonify, render_template, request, send_file
 from werkzeug.exceptions import HTTPException
-from .imaging import convert, preview
+from .imaging import convert, preview, diagnostic
 from .panel import Panel, color_bars, solid
 from .refresh import RefreshManager
 
@@ -59,6 +60,8 @@ def create_app(manager, simulate=True):
                                      enhance=request.form.get('enhance', 'photo'),
                                      **{key: request.form.get(key, 1) for key in
                                         ('brightness', 'contrast', 'saturation', 'gamma', 'strength')})
+            elif kind == 'diagnostic':
+                frame, png = diagnostic(request.form.get('orientation', 'landscape'))
             elif kind in ('white', 'bars'):
                 frame = solid('white') if kind == 'white' else color_bars()
                 png = preview(frame, request.form.get('orientation', 'landscape'))
@@ -104,6 +107,7 @@ def main():
     for signal, offset in dict(mosi=88, clk=89, cs=90, dc=92, rst=110, busy=68).items():
         parser.add_argument('--' + signal, type=int, default=offset)
     args = parser.parse_args()
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
     pins = {s: (args.chip, getattr(args, s)) for s in ('mosi', 'clk', 'cs', 'dc', 'rst', 'busy')}
     args.state_dir.mkdir(parents=True, exist_ok=True)
     # One server per state directory; do not launch multiple WSGI worker processes.

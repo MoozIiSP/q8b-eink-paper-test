@@ -39,6 +39,18 @@ class Panel:
                 raise TimeoutError(f'{stage}: BUSY remained {self.busy_level} for {timeout}s')
             self.sleep(0.005)
 
+    def wait_refresh_cycle(self, timeout=120):
+        # A refresh should spend a substantial period BUSY. An idle-only check
+        # can falsely succeed when the command was not accepted or BUSY is disconnected.
+        deadline = self.clock() + 1.0
+        while self.bus.busy() != self.busy_level:
+            if self.clock() >= deadline:
+                raise TimeoutError('refresh: BUSY did not assert within 1s; check BUSY wiring, polarity and command transmission')
+            self.sleep(0.001)
+        logging.info('refresh: BUSY asserted')
+        self.wait_ready('refresh', timeout)
+        logging.info('refresh: BUSY released')
+
     def command(self, command, data=b''):
         self.bus.write(False, bytes([command]))
         if data:
@@ -70,8 +82,11 @@ class Panel:
             progress(stage)
             logging.info(stage)
             self.command(command, data)
-            self.sleep(0.01)
-            self.wait_ready(stage, timeout)
+            if stage == 'refresh':
+                self.wait_refresh_cycle(timeout)
+            else:
+                self.sleep(0.01)
+                self.wait_ready(stage, timeout)
             self.sleep(0.01)
         self.command(0x07, b'\xa5')
         progress('sleep')

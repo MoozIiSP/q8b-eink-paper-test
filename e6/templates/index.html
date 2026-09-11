@@ -13,6 +13,7 @@
 <label>抖动强度 <input id="strength" type="number" min="0" max="1" step="0.1" value="1" disabled></label>
 </div><p class="hint">中间调大于 1 提亮暗部。抖动强度仅用于 Atkinson / Bayer。</p></details>
 <button class="primary wide" type="submit">生成六色预览</button></form>
+<button id="diagnostic" class="wide">预览定位测试图（无抖动）</button>
 <div class="row"><button id="bars">预览六色色条</button><button id="white">预览全白</button></div>
 <section class="device"><h2>设备状态</h2><dl><div><dt>当前阶段</dt><dd id="stage">未连接</dd></div><div><dt>下次可刷新</dt><dd id="wait">—</dd></div></dl><p id="device-error" role="status"></p></section>
 </section><section class="display"><div class="preview-title"><h2>上屏预览</h2><span>4 bpp</span></div><div class="screen" id="screen"><img id="preview" alt="六色处理后的待刷新画面" hidden><div id="empty"><strong>等待一幅新画面</strong><p>选择图片，或先用色条检查显示效果。</p></div></div><p class="hint">预览为近似 RGB 色彩；实际效果取决于面板、环境光和温度。</p>

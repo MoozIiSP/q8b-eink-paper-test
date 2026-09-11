@@ -2,7 +2,7 @@
 import io
 import math
 import warnings
-from PIL import Image, ImageEnhance, ImageFilter, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageEnhance, ImageFilter, ImageOps, ImageDraw, UnidentifiedImageError
 from .panel import WIDTH as NATIVE_WIDTH, HEIGHT as NATIVE_HEIGHT, validate_frame
 
 WIDTH, HEIGHT = 720, 480
@@ -147,3 +147,26 @@ def preview(frame, orientation='landscape'):
     output = io.BytesIO()
     image.save(output, 'PNG')
     return output.getvalue()
+
+
+def diagnostic(orientation='landscape'):
+    """No quantization: color blocks, unique corner labels, border and grid."""
+    if orientation not in ('landscape', 'portrait'):
+        raise ValueError('不支持的显示方向')
+    size = (WIDTH, HEIGHT) if orientation == 'landscape' else (NATIVE_WIDTH, NATIVE_HEIGHT)
+    codes = Image.new('L', size, 1)
+    draw = ImageDraw.Draw(codes)
+    draw.fontmode = '1'  # No antialiasing between numeric panel codes.
+    w, h = size
+    for i, code in enumerate(CODES):
+        left, right = i * w // 6, (i + 1) * w // 6 - 1
+        draw.rectangle((left, 60, right, h - 61), fill=code)
+        draw.text((left + 12, h // 2), str(code), fill=1 if code in (0, 3, 5, 6) else 0,
+                  font_size=28)
+    draw.rectangle((0, 0, w - 1, h - 1), outline=0, width=4)
+    draw.text((12, 12), '1 TL', fill=0, font_size=24)
+    draw.text((w - 88, 12), '2 TR', fill=0, font_size=24)
+    draw.text((12, h - 42), '3 BL', fill=0, font_size=24)
+    draw.text((w - 88, h - 42), '4 BR', fill=0, font_size=24)
+    frame = pack(codes, orientation)
+    return frame, preview(frame, orientation)

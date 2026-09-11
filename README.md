@@ -4,7 +4,7 @@
 
 ## Web 管理与新算法
 
-已增加[Web 管理端](docs/web-manager.md)：上传图片、六色预览、刷新/刷白/色条与任务状态。支持无抖动、Floyd–Steinberg、Atkinson 蛇形误差扩散、Bayer 有序抖动，以及照片增强和精细色彩调节；刷新策略加入成功帧去重、持久化 150 秒间隔及串行执行，GPIO 传输减少同控制器上的写入调用。面板仍使用原厂全刷波形，不宣称支持快速局刷。
+已增加[Web 管理端](docs/web-manager.md)：上传图片、六色预览、刷新/刷白/色条与任务状态。支持无抖动、Floyd–Steinberg、Atkinson 蛇形误差扩散、Bayer 有序抖动，以及照片增强和精细色彩调节；刷新策略加入成功帧去重、持久化 150 秒间隔及串行执行，故障排查版使用明确的 GPIO 写入顺序，并验证刷新 BUSY 忙→就绪过程。面板仍使用原厂全刷波形，不宣称支持快速局刷。
 
 ```sh
 .venv/bin/python -m pip install -r requirements-web.txt
