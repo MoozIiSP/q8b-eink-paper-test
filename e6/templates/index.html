@@ -13,9 +13,12 @@
 <label>抖动强度 <input id="strength" type="number" min="0" max="1" step="0.1" value="1" disabled></label>
 </div><p class="hint">中间调大于 1 提亮暗部。抖动强度仅用于 Atkinson / Bayer。</p></details>
 <button class="primary wide" type="submit">生成六色预览</button></form>
+<button id="gamut" class="wide">预览 RGBA 色域测试图</button>
+<p class="hint">RGB、灰阶、色相、饱和度与透明度梯度；使用当前处理设置，Alpha 合成到白底。</p>
 <button id="diagnostic" class="wide">预览定位测试图（无抖动）</button>
 <div class="row"><button id="bars">预览六色色条</button><button id="white">预览全白</button></div>
 <section class="device"><h2>设备状态</h2><dl><div><dt>当前阶段</dt><dd id="stage">未连接</dd></div><div><dt>下次可刷新</dt><dd id="wait">—</dd></div></dl><p id="device-error" role="status"></p></section>
 </section><section class="display"><div class="preview-title"><h2>上屏预览</h2><span>4 bpp</span></div><div class="screen" id="screen"><img id="preview" alt="六色处理后的待刷新画面" hidden><div id="empty"><strong>等待一幅新画面</strong><p>选择图片，或先用色条检查显示效果。</p></div></div><p class="hint">预览为近似 RGB 色彩；实际效果取决于面板、环境光和温度。</p>
+<details id="source-panel" hidden><summary>原始 sRGB 测试图（处理前对照）</summary><img id="source" alt="原始 RGBA 色域测试图"></details>
 <div class="submit"><label class="check"><input id="force" type="checkbox">重复画面也刷新（仍遵守间隔）</label><button class="primary" id="refresh" disabled>刷新电子纸</button></div><p id="message" role="status" aria-live="polite">选择图片或色条，生成预览。</p></section></main>
-<footer>刷新完成后保留画面并进入深睡眠。连续刷新至少间隔 150 秒。</footer></body></html>
+<footer>刷新完成后保留画面并进入深睡眠。刷新后等待 <span id="interval">—</span> 秒。</footer></body></html>

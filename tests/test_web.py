@@ -4,7 +4,7 @@ import threading
 import unittest
 from pathlib import Path
 from PIL import Image
-from e6.imaging import convert, preview, RGB, CODES, pack, quantize, diagnostic
+from e6.imaging import convert, preview, RGB, CODES, pack, quantize, diagnostic, gamut_chart
 from e6.panel import FRAME_BYTES, solid, validate_frame
 from e6.refresh import RefreshManager
 from e6.web import create_app
@@ -104,6 +104,22 @@ class ImagingTests(unittest.TestCase):
             for i, rgb in enumerate(RGB):
                 self.assertEqual(image.getpixel((i * size[0] // 6 + 10, 80)), rgb)
 
+    def test_rgba_chart_and_alpha(self):
+        for orientation, size in [('landscape', (720, 480)), ('portrait', (480, 720))]:
+            raw = gamut_chart(orientation)
+            source = Image.open(io.BytesIO(raw))
+            self.assertEqual(source.size, size)
+            self.assertEqual(source.mode, 'RGBA')
+            row = (size[1] - 36 - 56) // 9
+            y = 56 + 6 * row
+            self.assertEqual(source.getpixel((100, y)), (255, 0, 0, 0))
+            self.assertEqual(source.getpixel((size[0]-17, y)), (255, 0, 0, 255))
+            frame, output = convert(raw, 'none', orientation=orientation)
+            validate_frame(frame)
+            result = Image.open(io.BytesIO(output))
+            self.assertEqual(result.getpixel((100, y)), (255, 255, 255))
+            self.assertEqual(result.getpixel((size[0]-17, y)), (255, 0, 0))
+
     def test_bad_image(self):
         with self.assertRaises(ValueError):
             convert(b'not an image')
@@ -119,7 +135,7 @@ class RefreshTests(unittest.TestCase):
         self.now = 1000
 
     def manager(self, display):
-        return RefreshManager(display, self.path, clock=lambda: self.now)
+        return RefreshManager(display, self.path, interval=150, clock=lambda: self.now)
 
     def test_dedup_cooldown_restart_and_force(self):
         calls = []
@@ -152,6 +168,20 @@ class RefreshTests(unittest.TestCase):
         m.display = lambda frame, progress: None
         self.assertEqual(m.submit(solid('red')), 'started')
         m.thread.join(2)
+
+    def test_interval_config_and_legacy_migration(self):
+        self.path.write_text('{"last_hash": null, "next_at": 1150, "stage": "done", "error": null}')
+        m = RefreshManager(lambda frame, progress: None, self.path, clock=lambda: self.now)
+        self.assertEqual(m.status()['wait_seconds'], 10)
+        self.assertEqual(m.status()['interval_seconds'], 10)
+        self.now += 10
+        m.submit(solid('red')); m.thread.join(2)
+        zero = RefreshManager(lambda frame, progress: None, self.path, interval=0, clock=lambda: self.now)
+        self.assertEqual(zero.status()['wait_seconds'], 0)
+        zero.submit(solid('blue')); zero.thread.join(2)
+        for value in (-1, float('nan'), float('inf')):
+            with self.assertRaises(ValueError):
+                RefreshManager(lambda frame, progress: None, self.path, interval=value)
 
     def test_serialization(self):
         gate = threading.Event()
@@ -197,6 +227,16 @@ class WebTests(unittest.TestCase):
         self.assertEqual(response.json['result'], 'started')
         self.m.thread.join(2)
         self.assertEqual(self.client.post('/api/refresh', json={'id': identifier}).json['result'], 'unchanged')
+
+    def test_gamut_endpoint(self):
+        result = self.client.post('/api/prepare', data={'kind': 'gamut', 'enhance': 'none',
+                                                     'algorithm': 'bayer'})
+        self.assertEqual(result.status_code, 200)
+        self.assertTrue(result.json['has_source'])
+        source = self.client.get('/api/source/' + result.json['id'])
+        self.assertEqual(Image.open(io.BytesIO(source.data)).mode, 'RGBA')
+        self.client.post('/api/prepare', data={'kind': 'white'})
+        self.assertEqual(self.client.get('/api/source/' + result.json['id']).status_code, 404)
 
     def test_stale_and_invalid(self):
         first = self.client.post('/api/prepare', data={'kind': 'bars'}).json['id']

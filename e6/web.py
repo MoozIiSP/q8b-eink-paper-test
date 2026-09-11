@@ -3,13 +3,14 @@ import argparse
 import fcntl
 import io
 import logging
+import math
 import secrets
 import threading
 import time
 from pathlib import Path
 from flask import Flask, jsonify, render_template, request, send_file
 from werkzeug.exceptions import HTTPException
-from .imaging import convert, preview, diagnostic
+from .imaging import convert, preview, diagnostic, gamut_chart
 from .panel import Panel, color_bars, solid
 from .refresh import RefreshManager
 
@@ -50,11 +51,15 @@ def create_app(manager, simulate=True):
             return jsonify(error='正在生成预览，请稍后再试'), 409
         try:
             kind = request.form.get('kind', 'image')
-            if kind == 'image':
+            source = None
+            if kind in ('image', 'gamut'):
                 upload = request.files.get('image')
-                if upload is None:
+                if kind == 'image' and upload is None:
                     raise ValueError('请选择图片')
-                frame, png = convert(upload.read(), request.form.get('algorithm', 'floyd-steinberg'),
+                raw = gamut_chart(request.form.get('orientation', 'landscape')) if kind == 'gamut' else upload.read()
+                if kind == 'gamut':
+                    source = raw
+                frame, png = convert(raw, request.form.get('algorithm', 'floyd-steinberg'),
                                      request.form.get('fit', 'contain'),
                                      orientation=request.form.get('orientation', 'landscape'),
                                      enhance=request.form.get('enhance', 'photo'),
@@ -69,8 +74,8 @@ def create_app(manager, simulate=True):
                 raise ValueError('未知图像类型')
             identifier = secrets.token_urlsafe(18)
             prepared.clear()
-            prepared.update(id=identifier, frame=frame, png=png)
-            return jsonify(id=identifier, bytes=len(frame))
+            prepared.update(id=identifier, frame=frame, png=png, source=source)
+            return jsonify(id=identifier, bytes=len(frame), has_source=source is not None)
         finally:
             guard.release()
 
@@ -81,6 +86,14 @@ def create_app(manager, simulate=True):
                 return jsonify(error='预览已过期，请重新生成'), 404
             png = prepared['png']
         return send_file(io.BytesIO(png), mimetype='image/png')
+
+    @app.get('/api/source/<identifier>')
+    def get_source(identifier):
+        with guard:
+            if prepared.get('id') != identifier or prepared.get('source') is None:
+                return jsonify(error='原始测试图已过期'), 404
+            source = prepared['source']
+        return send_file(io.BytesIO(source), mimetype='image/png')
 
     @app.post('/api/refresh')
     def refresh():
@@ -100,6 +113,8 @@ def main():
     parser = argparse.ArgumentParser(description='E6 Web manager (simulation by default)')
     parser.add_argument('--hardware', action='store_true', help='enable real Q8B GPIO access')
     parser.add_argument('--host', default='127.0.0.1')
+    parser.add_argument('--refresh-interval', type=float, default=10,
+                        help='seconds after refresh completion (default: 10; 0 disables extra cooldown)')
     parser.add_argument('--port', type=int, default=8080)
     parser.add_argument('--chip', default='/dev/gpiochip4')
     parser.add_argument('--state-dir', type=Path, default=Path('var'))
@@ -107,6 +122,8 @@ def main():
     for signal, offset in dict(mosi=88, clk=89, cs=90, dc=92, rst=110, busy=68).items():
         parser.add_argument('--' + signal, type=int, default=offset)
     args = parser.parse_args()
+    if not math.isfinite(args.refresh_interval) or args.refresh_interval < 0:
+        parser.error('--refresh-interval must be finite and >= 0')
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
     pins = {s: (args.chip, getattr(args, s)) for s in ('mosi', 'clk', 'cs', 'dc', 'rst', 'busy')}
     args.state_dir.mkdir(parents=True, exist_ok=True)
@@ -128,7 +145,7 @@ def main():
                 time.sleep(0.3)
 
     state_file = args.state_dir / ('hardware.json' if args.hardware else 'simulation.json')
-    manager = RefreshManager(display, state_file)
+    manager = RefreshManager(display, state_file, interval=args.refresh_interval)
     from waitress import serve
     print(f'E6 manager: http://{args.host}:{args.port} ({"hardware" if args.hardware else "simulation"})', flush=True)
     serve(create_app(manager, not args.hardware), host=args.host, port=args.port, threads=4)

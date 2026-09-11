@@ -4,7 +4,7 @@
 
 ## Web 管理与新算法
 
-已增加[Web 管理端](docs/web-manager.md)：上传图片、六色预览、刷新/刷白/色条与任务状态。支持无抖动、Floyd–Steinberg、Atkinson 蛇形误差扩散、Bayer 有序抖动，以及照片增强和精细色彩调节；刷新策略加入成功帧去重、持久化 150 秒间隔及串行执行，故障排查版使用明确的 GPIO 写入顺序，并验证刷新 BUSY 忙→就绪过程。面板仍使用原厂全刷波形，不宣称支持快速局刷。
+已增加[Web 管理端](docs/web-manager.md)：上传图片、六色预览、刷新/刷白/色条与任务状态。支持无抖动、Floyd–Steinberg、Atkinson 蛇形误差扩散、Bayer 有序抖动，以及照片增强和精细色彩调节；刷新策略加入成功帧去重、可配置的刷新间隔（默认 10 秒）及串行执行，故障排查版使用明确的 GPIO 写入顺序，并验证刷新 BUSY 忙→就绪过程。面板仍使用原厂全刷波形，不宣称支持快速局刷。
 
 ```sh
 .venv/bin/python -m pip install -r requirements-web.txt
@@ -92,7 +92,7 @@ sudo .venv/bin/python -m e6 \
 
 未启用示例中的测试模式“水波纹”寄存器。示例命名 JD7601，而规格图纸写 IST7601，规格参数表 IC 又为 TBD；本实现限定于当前参考资料对应的 GDEH037E01，不能据此宣称兼容所有 E6 屏。
 
-`docs/E6_design_notice-cn.pdf` 第 3 页建议连续翻页间隔 150 秒；应用层应遵循该建议，本工具不跨进程记录刷新间隔。长期存储刷白，维护刷新按产品要求安排。
+`docs/E6_design_notice-cn.pdf` 第 3 页建议连续翻页间隔 150 秒；Web 调试默认间隔为 10 秒，可用 `--refresh-interval 150` 恢复该建议；Web 会保存间隔状态，独立 CLI 不跨进程记录间隔。长期存储刷白，维护刷新按产品要求安排。
 
 ## 验证状态
 

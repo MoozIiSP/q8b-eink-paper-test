@@ -170,3 +170,45 @@ def diagnostic(orientation='landscape'):
     draw.text((w - 88, h - 42), '4 BR', fill=0, font_size=24)
     frame = pack(codes, orientation)
     return frame, preview(frame, orientation)
+
+
+def gamut_chart(orientation='landscape'):
+    """Synthetic sRGB reference, not a measured physical panel gamut."""
+    import colorsys
+    if orientation not in ('landscape', 'portrait'):
+        raise ValueError('不支持的显示方向')
+    w, h = (720, 480) if orientation == 'landscape' else (480, 720)
+    image = Image.new('RGBA', (w, h), 'white')
+    draw = ImageDraw.Draw(image)
+    draw.text((12, 8), 'sRGB / RGBA reference', fill='black', font_size=20)
+    left, right = 100, w - 16
+    top, bottom = 56, h - 36
+    labels = ('R', 'G', 'B', 'GRAY', 'HUE', 'SAT', 'A RED', 'A BLUE', 'STEPS')
+    row = (bottom - top) // len(labels)
+    for index, label in enumerate(labels):
+        y = top + index * row
+        draw.text((12, y + 3), label, fill='black', font_size=16)
+        for x in range(left, right):
+            t = (x - left) / (right - left - 1)
+            v = round(t * 255)
+            if index < 3:
+                color = [0, 0, 0, 255]
+                color[index] = v
+            elif index == 3:
+                color = (v, v, v, 255)
+            elif index == 4:
+                color = (*[round(c * 255) for c in colorsys.hsv_to_rgb(t, 1, 1)], 255)
+            elif index == 5:
+                color = (255, 255-v, 255-v, 255)
+            elif index in (6, 7):
+                color = (255, 0, 0, v) if index == 6 else (0, 0, 255, v)
+            else:
+                v = min(15, int(t * 16)) * 17
+                color = (v, v, v, 255)
+            draw.line((x, y, x, y + row - 8), fill=tuple(color))
+    draw.text((left, 34), '0', fill='black', font_size=14)
+    draw.text((right-28, 34), '255', fill='black', font_size=14)
+    draw.text((12, h-26), 'Alpha: 0 -> 255, composited on WHITE', fill='black', font_size=14)
+    output = io.BytesIO()
+    image.save(output, 'PNG')
+    return output.getvalue()
